@@ -6,11 +6,16 @@
 
 如果您有任何问题或建议，欢迎提交issue。
 
-如果您有兴趣参与开发，欢迎fork本仓库并提交pull request，但请注意，您应当fork `dev`分支，并且在提交pr时，应当向`feature`分支提交，请不要直接向`dev`分支和`main`提交pr。
+如果您有兴趣参与开发，欢迎fork本仓库并提交pull request，但请注意，您应当fork `dev`分支，并且向`dev`分支提交pr，请不要向`main`分支提交pr，否则您的pr将被拒绝。
 
-本仓库不欢迎以任何形式的搬运转载，本仓库明确声明，任何在非github.com/LittleJiu-furry/marked_pillow仓库下的代码均不是本仓库的代码，本仓库不对这些代码的安全性和合法性负责。
+本仓库不欢迎任何形式的搬运转载，本仓库明确声明，任何在非github.com/LittleJiu-furry/marked_pillow仓库下的代码均不是本仓库的代码，本仓库不对这些代码的安全性和合法性负责。
 
 Copyright (c) 2024 LittleJiu All rights reserved.
+
+## 仓库分支说明
+- `main`分支是稳定分支，只有通过测试的代码才会合并到这个分支
+- `dev`分支是开发分支，所有的开发都在这个分支上进行，这个分支的代码是最新的，但是极不稳定，本分支不通过任何方式发布内容，您需要自行构建
+- `preview`分支是预览分支，预发布版本将由这个分支发布，这个分支的代码可能不稳定
 
 ## 解析说明
 html解析下不支持的内容
