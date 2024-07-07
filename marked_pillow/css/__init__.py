@@ -69,9 +69,9 @@ def _parseSelector(cssSelectors:cu.css.Selector) -> list[CssSelector]:
             if(item.type == "type-selector"):
                 temp_selector.tag = item.value[1]
             elif(item.type == "class"):
-                temp_selector.classes.append(item.value)
+                temp_selector.classes.append(str(item.value)[1:])
             elif(item.type == "id"):
-                temp_selector.ids = item.value
+                temp_selector.ids = str(item.value)[1:]
             elif(item.type in attrs_type):
                 if(item.type == "equals"):
                     continue

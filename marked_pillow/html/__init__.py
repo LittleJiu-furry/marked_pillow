@@ -120,9 +120,9 @@ class ElementTree:
         def deal(resule:Optional[list[Element]] = None):
             if(not resule):
                 selector_nodes, _ = selector
-                selector_node = selector_nodes[0] #type: ignore
+                selector_node = selector_nodes[0]
                 if(hasattr(selector_node, "tag") and type(selector_node) == CssSelectorNode):
-                    temp_tag.update(self.getElementsByTagName(selector_node.tag))
+                    temp_tag.update(self.getElementsByTagName(selector_node.tag)) if selector_node.tag != "" else None
                     for class_name in selector_node.classes:
                         temp_class.update(self.getElementsByClassName(class_name))
                     id_element = self.getElementById(selector_node.ids) if selector_node.ids != "" else None
@@ -138,17 +138,28 @@ class ElementTree:
                                     temp_attr.add(root)
                         return False
                     self.__dfs(self.root, callback)
-                # 排除上面的空集合
+
                 temp_set = set()
+                # 全部添加进去
+                temp_set.update(temp_tag)
+                temp_set.update(temp_class)
+                temp_set.update(temp_id)
+                temp_set.update(temp_attr)
+                # 排除空集，按照集合数量由大到小排序
+                temp_sets = []
                 if(temp_tag):
-                    temp_set.update(temp_tag)
+                    temp_sets.append(temp_tag)
                 if(temp_class):
-                    temp_set.update(temp_class)
+                    temp_sets.append(temp_class)
                 if(temp_id):
-                    temp_set.update(temp_id)
+                    temp_sets.append(temp_id)
                 if(temp_attr):
-                    temp_set.update(temp_attr)
-                result = list(temp_set.copy())
+                    temp_sets.append(temp_attr)
+                temp_sets.sort(key=lambda x:len(x), reverse=True)
+                for _set in temp_sets:
+                    temp_set &= _set
+                nonlocal results
+                results = list(temp_set.copy())
                 temp_tag.clear()
                 temp_class.clear()
                 temp_id.clear()
