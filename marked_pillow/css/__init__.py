@@ -1,7 +1,7 @@
 import cssutils as cu
 from cssutils.util import Item as cuItem
 from typing import (
-    Union, NewType
+    Union, NewType, Optional
 )
 
 
@@ -60,7 +60,7 @@ def _parseSelector(cssSelectors:cu.css.Selector) -> list[CssSelector]:
         temp_selector = CssSelectorNode("", [], "", [])
         node_and_complex:list[Union[CssSelectorNode, CssSelectorComplex]] = [temp_selector]
 
-        complex_type = ["child", "adjacent-sibling", "following-sibling"]
+        complex_type = ["child", "adjacent-sibling", "following-sibling", "descendant"]
         attrs_type = ["attribute-start", "attribute-end", "attribute-selector",
                     "attribute-value", "equals", "STRIING"]
         temp_attrs = []
@@ -86,6 +86,7 @@ def _parseSelector(cssSelectors:cu.css.Selector) -> list[CssSelector]:
                     ):
                     temp_attrs.append(item.value)
             elif(item.type in complex_type):
+                continue # 暂不处理复杂选择器
                 node_and_complex.append(CssSelectorComplex(item.type, item.value))
                 temp_selector = CssSelectorNode("", [], "", [])
             elif(item.type == "universal"):
@@ -134,9 +135,11 @@ def parseURL(url:str) -> list[CSSRules]:
     return _parseRule(sheet.cssRules)
 
 if __name__ == '__main__':
-    with open("output.txt", "w", encoding="utf-8") as f:
-        for i in parseURL("https://me.wefurry.com.cn/css/style.css"):
-            f.write(f"{repr(i)}\n")
+    print(parseString("""
+        body h1{
+            color: red;
+        }
+    """))
     
 
         
