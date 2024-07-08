@@ -2,7 +2,10 @@ from html.parser import HTMLParser
 from typing import (
     Union, Any, Callable, Optional
 )
-from marked_pillow.css import parseStyle, parseFile, parseURL, CssSelector, CssSelectorNode
+from marked_pillow.css import (
+    parseStyle, parseFile, parseURL, parseString,
+    CssSelector, CssSelectorNode, CssSelectorComplex
+)
 
 class ElementClassList(list):...
 
@@ -17,7 +20,7 @@ class Element:
         self.id = ""
         self.__tree = from_tree
         # css样式
-        self.style = {}
+        self.style:dict[str, tuple[str, str, tuple[int,...]]] = {}
         self.offsetWidth = 0
         self.offsetHeight = 0
         
@@ -40,12 +43,15 @@ class Element:
         return key in self.attributes
     
     def __str__(self) -> str:
-        return f"<Element {self.name} id:'{self.id}' classList:{self.classList}, innerText:'{self.InnerText}'>"
+        return f"<Element {self.name} id:'{self.id}' classList:{self.classList}, innerText:'{self.InnerText}' style:{self.style}>"
     
+    def __repr__(self) -> str:
+        return f"<Element {self.name} id:'{self.id}' classList:{self.classList}, innerText:'{self.InnerText}' style:{self.style}>"
+
     def getElementById(self, _id:str) -> Union["Element", None]:
         def callback(root:Element):
             return root.id == _id
-        return self.__tree.__dfs(self, callback)
+        return self.__tree._dfs(self, callback)
     
     def getElementsByClassName(self, className:str) -> list["Element"]:
         results:list["Element"] = []
@@ -53,7 +59,7 @@ class Element:
             if className in root.classList:
                 results.append(root)
             return False # 不停止遍历
-        self.__tree.__dfs(self, callback)
+        self.__tree._dfs(self, callback)
         return results
     
     def getElementsByTagName(self, tagName:str) -> list["Element"]:
@@ -62,7 +68,7 @@ class Element:
             if root.name == tagName:
                 results.append(root)
             return False
-        self.__tree.__dfs(self, callback)
+        self.__tree._dfs(self, callback)
         return results
 
 class ElementTree:
@@ -77,13 +83,13 @@ class ElementTree:
     
     # 这是一个普通多叉树
     # 深度优先遍历
-    def __dfs(self, root:Element, callback:Callable[[Element], bool]) -> Union[Element, None]:
+    def _dfs(self, root:Element, callback:Callable[[Element], bool]) -> Union[Element, None]:
         # 深度优先遍历
         # callback用来返回布尔值，用来判断是否找到了目标节点
         if callback(root):
             return root
         for child in root.children:
-            res = self.__dfs(child, callback)
+            res = self._dfs(child, callback)
             if res:
                 return res
         return None
@@ -91,7 +97,7 @@ class ElementTree:
     def getElementById(self, _id:str) -> Union[Element, None]:
         def callback(root:Element):
             return root.id == _id
-        return self.__dfs(self.root, callback)
+        return self._dfs(self.root, callback)
     
     def getElementsByClassName(self, className:str) -> list[Element]:
         results:list[Element] = []
@@ -99,7 +105,7 @@ class ElementTree:
             if className in root.classList:
                 results.append(root)
             return False # 不停止遍历
-        self.__dfs(self.root, callback)
+        self._dfs(self.root, callback)
         return results
 
     def getElementsByTagName(self, tagName:str) -> list[Element]:
@@ -108,79 +114,152 @@ class ElementTree:
             if root.name == tagName:
                 results.append(root)
             return False # 不停止遍历
-        self.__dfs(self.root, callback)
+        self._dfs(self.root, callback)
         return results
     
-    def querySelectorAll(self, selector:CssSelector) -> Union[list[Element], None]:
+    def querySelectorAll(self, selector:str) -> Union[list[Element], None]:
+        # 将str转换为CssSelector
+        css_selector = parseString(selector + " {\n}")
+        return self._querySelectorAll(css_selector[0].selectors[0])
+
+    def _querySelectorAll(self, selector:CssSelector) -> Union[list[Element], None]:
         results:list[Element] = []
         temp_tag:set[Element] = set()
         temp_class:set[Element] = set()
         temp_id:set[Element] = set()
         temp_attr:set[Element] = set()
-        def deal(resule:Optional[list[Element]] = None):
-            if(not resule):
-                selector_nodes, _ = selector
-                selector_node = selector_nodes[0]
-                if(hasattr(selector_node, "tag") and type(selector_node) == CssSelectorNode):
-                    temp_tag.update(self.getElementsByTagName(selector_node.tag)) if selector_node.tag != "" else None
-                    for class_name in selector_node.classes:
-                        temp_class.update(self.getElementsByClassName(class_name))
-                    id_element = self.getElementById(selector_node.ids) if selector_node.ids != "" else None
-                    if(id_element):
-                        temp_id.add(id_element)
-                    def callback(root:Element):   
-                        for attr, value in selector_node.attrs:
-                            if(value == None or value == "" or value == "*"):
-                                if(root.hasAttribute(attr)):
-                                    temp_attr.add(root)
-                            else:
-                                if(root.getAttribute(attr) == value):
-                                    temp_attr.add(root)
-                        return False
-                    self.__dfs(self.root, callback)
+        
+        def deal_complex(resule:list[Element]):
+            temp_resule:set[Element] = set()
+            # 处理复杂选择器
+            selector_nodes, _ = selector
+            for selector_node in selector_nodes[1:]:
+                if(type(selector_node) == CssSelectorComplex):
+                    if(selector_node.c =="+"):
+                        # 相邻兄弟选择器
+                        for e in resule:
+                            if(e.parent):
+                                # 应当选中这个元素在父元素中的下一个元素
+                                index = e.parent.children.index(e)
+                                if(index+1 < len(e.parent.children)):
+                                    temp_resule.add(e.parent.children[index+1])
+                    elif(selector_node.c == "~"):
+                        # 后续兄弟选择器
+                        for e in resule:
+                            if(e.parent):
+                                # 应当选中这个元素在父元素中的下一个元素
+                                index = e.parent.children.index(e)
+                                if(index + 1 < len(e.parent.children)):
+                                    temp_resule.update(e.parent.children[index+1:])
+                    elif(selector_node.c == ">"):
+                        # 直接子元素选择器
+                        for e in resule:
+                            temp_resule.update(e.children)
+                    elif(selector_node.c == " "):
+                        # 后代选择器
+                        def callback(root:Element):
+                            temp_resule.add(root)
+                            return False
+                        for e in resule:
+                            self._dfs(e, callback)
+                if(type(selector_node) == CssSelectorNode):
+                    # 从temp_resule中筛选
+                    for item in temp_resule:
+                        if(selector_node.tag):
+                            if(item.name == selector_node.tag):
+                                temp_tag.add(item)
+                        if(selector_node.classes):
+                            for class_name in selector_node.classes:
+                                if class_name in item.classList:
+                                    temp_class.add(item)
+                        if(selector_node.ids):
+                            if(item.id == selector_node.ids):
+                                temp_id.add(item)
+                        if(selector_node.attrs):
+                            for attr, value in selector_node.attrs:
+                                if(value == None or value == "" or value == "*"):
+                                    if(item.hasAttribute(attr)):
+                                        temp_attr.add(item)
+                                else:
+                                    if(item.getAttribute(attr) == value):
+                                        temp_attr.add(item)
+                    temp_set = set()
+                    # 全部添加进去
+                    temp_set.update(temp_tag)
+                    temp_set.update(temp_class)
+                    temp_set.update(temp_id)
+                    temp_set.update(temp_attr)
+                    # 排除空集，按照集合数量由大到小排序
+                    temp_sets = []
+                    if(temp_tag):
+                        temp_sets.append(temp_tag)
+                    if(temp_class):
+                        temp_sets.append(temp_class)
+                    if(temp_id):
+                        temp_sets.append(temp_id)
+                    if(temp_attr):
+                        temp_sets.append(temp_attr)
+                    temp_sets.sort(key=lambda x:len(x), reverse=True)
+                    # 取交集
+                    for _set in temp_sets:
+                        temp_set &= _set
+                    temp_resule &= temp_set
+            nonlocal results
+            results = list(temp_resule.copy())
 
-                temp_set = set()
-                # 全部添加进去
-                temp_set.update(temp_tag)
-                temp_set.update(temp_class)
-                temp_set.update(temp_id)
-                temp_set.update(temp_attr)
-                # 排除空集，按照集合数量由大到小排序
-                temp_sets = []
-                if(temp_tag):
-                    temp_sets.append(temp_tag)
-                if(temp_class):
-                    temp_sets.append(temp_class)
-                if(temp_id):
-                    temp_sets.append(temp_id)
-                if(temp_attr):
-                    temp_sets.append(temp_attr)
-                temp_sets.sort(key=lambda x:len(x), reverse=True)
-                for _set in temp_sets:
-                    temp_set &= _set
-                nonlocal results
-                results = list(temp_set.copy())
-                temp_tag.clear()
-                temp_class.clear()
-                temp_id.clear()
-                temp_attr.clear()
-            else:
-                _tag = set()
-                _class = set()
-                _id = set()
-                _attr = set()
-                for element in resule:
-                    for selector_nodes, spec in selector:
-                        for selector_node in selector_nodes: #type: ignore
-                            if(hasattr(selector_node, "tag")):
-                                ...
+        # 对第一个节点进行处理
+        def deal():
+            selector_nodes, _ = selector
+            selector_node = selector_nodes[0]
+            if(type(selector_node) == CssSelectorNode):
+                temp_tag.update(self.getElementsByTagName(selector_node.tag)) if selector_node.tag != "" else None
+                for class_name in selector_node.classes:
+                    temp_class.update(self.getElementsByClassName(class_name))
+                id_element = self.getElementById(selector_node.ids) if selector_node.ids != "" else None
+                if(id_element):
+                    temp_id.add(id_element)
+                def callback(root:Element):   
+                    for attr, value in selector_node.attrs:
+                        if(value == None or value == "" or value == "*"):
+                            if(root.hasAttribute(attr)):
+                                temp_attr.add(root)
+                        else:
+                            if(root.getAttribute(attr) == value):
+                                temp_attr.add(root)
+                    return False
+                self._dfs(self.root, callback)
 
+            temp_set = set()
+            # 全部添加进去
+            temp_set.update(temp_tag)
+            temp_set.update(temp_class)
+            temp_set.update(temp_id)
+            temp_set.update(temp_attr)
+            # 排除空集，按照集合数量由大到小排序
+            temp_sets = []
+            if(temp_tag):
+                temp_sets.append(temp_tag)
+            if(temp_class):
+                temp_sets.append(temp_class)
+            if(temp_id):
+                temp_sets.append(temp_id)
+            if(temp_attr):
+                temp_sets.append(temp_attr)
+            temp_sets.sort(key=lambda x:len(x), reverse=True)
+            # 取交集
+            for _set in temp_sets:
+                temp_set &= _set
+            nonlocal results
+            results = list(temp_set.copy())
+            temp_tag.clear()
+            temp_class.clear()
+            temp_id.clear()
+            temp_attr.clear()
 
-
+            if(len(selector_nodes) > 1):
+                deal_complex(results)
 
         deal()
-        # 再次遍历选择器列表，敲定元素
-        # return deal(resule = results)
         return results
 
     

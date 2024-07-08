@@ -86,7 +86,7 @@ def _parseSelector(cssSelectors:cu.css.Selector) -> list[CssSelector]:
                     ):
                     temp_attrs.append(item.value)
             elif(item.type in complex_type):
-                continue # 暂不处理复杂选择器
+                # continue # 暂不处理复杂选择器
                 node_and_complex.append(CssSelectorComplex(item.type, item.value))
                 temp_selector = CssSelectorNode("", [], "", [])
             elif(item.type == "universal"):
@@ -106,7 +106,8 @@ def _parseRule(rules:list[cu.css.CSSStyleRule]) -> list[CSSRules]:
             continue
         temp_rule = CSSRules()
         temp_rule.selectors = _parseSelector(rule.selectorList)
-        temp_rule.properties = rule.style.getProperties()
+        style:cu.css.CSSStyleDeclaration = rule.style
+        temp_rule.properties = style.getProperties()
         rets.append(temp_rule)
     return rets
 
