@@ -1,10 +1,13 @@
 from html.parser import HTMLParser
 from typing import (
-    Union, Any, Callable, Optional
+    Union, Any, Callable, Optional, Generator
 )
 from marked_pillow.css import (
     parseStyle, parseFile, parseURL, parseString,
     CssSelector, CssSelectorNode, CssSelectorComplex
+)
+from PIL import (
+    Image, ImageDraw, ImageFont
 )
 
 class ElementClassList(list):...
@@ -28,6 +31,41 @@ class Element:
         self.offsetY = 0
 
         self.parent: Optional[Element] = None
+    
+    def render(self) -> Image.Image:
+        # 如果他有子元素，则调用子元素的render方法，拿到子元素绘制的图片对象
+        childrenImages:list[Image.Image] = []
+        if self.children:
+            for child in self.children:
+                childrenImages.append(child.render())
+            temp_img = None
+            ret_img = childrenImages[0]
+            for child in childrenImages[1:]:
+                width = max(ret_img.width, child.width)
+                height = ret_img.height + child.height
+                temp_img = Image.new("RGB", (width, height), (255,255,255))
+                temp_img.paste(ret_img, (0, 0))
+                temp_img.paste(child, (0, ret_img.height))
+                ret_img = temp_img.copy()
+                temp_img = None
+            
+            # temp_img = Image.new("RGB", (ret_img.width + 10, ret_img.height + 10), (255,255,255))
+            # temp_img.paste(ret_img, (5, 5))
+            # ret_img = temp_img.copy()
+            # temp_img = None
+            return ret_img
+        else:
+            fontSize = self.style.get("font-size", ("20px","",(0)))[0]
+            if(fontSize.endswith("px")):
+                fontSize = float(fontSize[:-2])
+            else:
+                fontSize = float(fontSize)
+            font = ImageFont.truetype("simhei.ttf",size = float(fontSize))
+            textbox = ImageDraw.Draw(Image.new("RGB", (1, 1))).textbbox((0, 0), self.InnerText, font=font)
+            temp_img = Image.new("RGB", (textbox[2], textbox[3]), (255, 255, 255))
+            ImageDraw.Draw(temp_img).text((0, 0), self.InnerText, fill=(0, 0, 0), font=font)
+            return temp_img
+    
     
     def getAttribute(self, key:str) -> Union[Any, None]:
         return self.attributes.get(key, None)
@@ -261,18 +299,15 @@ class ElementTree:
 
         deal()
         return results
-
     
-    # 遍历并输出所有节点
-    def traverse(self):
-        index = 0
-        with open("output.txt", "w", encoding="utf-8") as f:
-            def _dfs(root:Element, index:int):
-                # print(f"{'|'*index}{root}")
-                f.write(f"{'|'*index}{root}\n")
-                for child in root.children:
-                    _dfs(child, index+1)
-            _dfs(self.root, index)
+    # 遍历所有节点，并以生成器方式返回
+    def travel(self, start_element: Element) -> Generator[Element, None, None]:
+        def _dfs(root:Element):
+            if(root != start_element):
+                yield root
+            for child in root.children:
+                yield from _dfs(child)
+        yield from _dfs(start_element)
     
 class Document(ElementTree):
     def __init__(self):
@@ -303,8 +338,10 @@ class Document(ElementTree):
         with open(path, "r", encoding="utf-8") as f:
             self.parserHTML(f.read())
     
-
-
+    def render(self, start_element: Optional[Element] = None) -> Image.Image:
+        if(start_element == None):
+            start_element = self.body if self.body != None else self.root
+        return start_element.render()
 
 class Parser(HTMLParser):
     def __init__(self, document:Document):

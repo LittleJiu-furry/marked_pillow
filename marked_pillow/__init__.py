@@ -18,7 +18,16 @@ from . import html as lh
 from . import css
 import os
 
-def parserHTML(content:str, prefix_for_css:str = ""):
+def parserHTML(content:str, prefix_for_css:str = "") -> lh.Document:
+    '''
+        作用::
+            用于解析HTML文本，并返回内建的document对象
+        参数列表::
+            `content`: str 待解析的HTML文本
+            `prefix_for_css`: str 资源文件的引用链接修正前缀
+        返回值::
+            返回内建的document对象
+    '''
     document = lh.Document()
     document.parserHTML(content)
 
